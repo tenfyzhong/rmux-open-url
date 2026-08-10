@@ -1,12 +1,13 @@
 # rmux-open-url
 
-`rmux-open-url` is a Rust implementation of the URL-picking workflow of the
-reference tmux plugin, built for [rmux](https://rmux.io/docs/get-started/).
+`rmux-open-url` is a tool for opening URL links found in the screen content
+of your [rmux](https://rmux.io/docs/get-started/) panes.
 
-It captures the visible target pane, extracts the URLs on screen, and shows
-them in an interactive picker. Repeated URLs are deduplicated, so
-each URL — including duplicates produced by different patterns, such as a Git
-SSH URL and the literal https URL it normalizes to — is listed only once:
+It captures the visible content of the current pane, extracts the URL links on
+screen, and presents them in an interactive list for one-key opening in the
+browser. Duplicate URLs are automatically deduplicated, so each link —
+including the same link produced by different patterns, such as a Git SSH
+address and the https address it converts to — is listed only once:
 
 - **Enter** opens the selected URLs in your browser.
 - **Tab** toggles multi-select; with nothing selected, Enter opens every
