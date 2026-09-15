@@ -1,4 +1,3 @@
-use std::collections::BTreeSet;
 use std::io::{self, Stdout, Write};
 use std::process::Command;
 use std::time::Duration;
@@ -15,7 +14,7 @@ use crossterm::terminal::{
     enable_raw_mode, size,
 };
 use rmux_open_url::{
-    Extractor, build_copy_action, build_open_action, filter_candidates, parse_show_options,
+    Extractor, UiState, build_copy_action, build_open_action, parse_show_options,
     resolve_copy_command, resolve_opener, run_action, spawn_detached, strip_ansi,
 };
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
@@ -24,7 +23,7 @@ use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 #[command(
     version,
     about = "Query and open URLs visible on the rmux screen",
-    after_help = "Enter opens the selected URLs in the browser; Tab toggles multi-select;\n\
+    after_help = "Enter opens the selected URLs (or the current line); Tab toggles multi-select;\n\
                   Ctrl-y copies instead of opening; Esc cancels."
 )]
 struct Args {
@@ -198,112 +197,6 @@ impl Drop for Terminal {
     fn drop(&mut self) {
         let _ = execute!(self.stdout, Show, LeaveAlternateScreen);
         let _ = disable_raw_mode();
-    }
-}
-
-struct UiState {
-    urls: Vec<String>,
-    filtered: Vec<usize>,
-    query: String,
-    selected: BTreeSet<usize>,
-    cursor: usize,
-    notice: Option<String>,
-}
-
-impl UiState {
-    fn new(urls: Vec<String>) -> Self {
-        let filtered = (0..urls.len()).collect();
-        Self {
-            urls,
-            filtered,
-            query: String::new(),
-            selected: BTreeSet::new(),
-            cursor: 0,
-            notice: None,
-        }
-    }
-
-    fn refilter(&mut self) {
-        self.filtered = filter_candidates(&self.query, &self.urls);
-        self.cursor = 0;
-    }
-
-    fn type_char(&mut self, ch: char) {
-        self.query.push(ch);
-        self.refilter();
-    }
-
-    fn backspace(&mut self) {
-        self.query.pop();
-        self.refilter();
-    }
-
-    fn clear_query(&mut self) {
-        self.query.clear();
-        self.refilter();
-    }
-
-    fn cursor_up(&mut self) {
-        self.cursor = self.cursor.saturating_sub(1);
-    }
-
-    fn cursor_down(&mut self) {
-        if self.cursor + 1 < self.filtered.len() {
-            self.cursor += 1;
-        }
-    }
-
-    fn page_up(&mut self, viewport: usize) {
-        self.cursor = self
-            .cursor
-            .saturating_sub(viewport.saturating_sub(1).max(1));
-    }
-
-    fn page_down(&mut self, viewport: usize) {
-        self.cursor = (self.cursor + viewport.saturating_sub(1).max(1))
-            .min(self.filtered.len().saturating_sub(1));
-    }
-
-    fn home(&mut self) {
-        self.cursor = 0;
-    }
-
-    fn end(&mut self) {
-        self.cursor = self.filtered.len().saturating_sub(1);
-    }
-
-    fn toggle(&mut self) {
-        if self.filtered.is_empty() {
-            return;
-        }
-        let index = self.filtered[self.cursor.min(self.filtered.len() - 1)];
-        if !self.selected.insert(index) {
-            self.selected.remove(&index);
-        }
-    }
-
-    /// Enter confirms the selected URLs, or all filtered matches when nothing
-    /// is selected.
-    fn confirm_open(&self) -> Vec<usize> {
-        if self.selected.is_empty() {
-            self.filtered.clone()
-        } else {
-            self.selected.iter().copied().collect()
-        }
-    }
-
-    /// Ctrl-y copies the selected URLs, or the current line when nothing is
-    /// selected.
-    fn confirm_copy(&self) -> Vec<usize> {
-        if self.selected.is_empty() {
-            if self.filtered.is_empty() {
-                Vec::new()
-            } else {
-                vec![self.filtered[self.cursor.min(self.filtered.len() - 1)]]
-            }
-        } else {
-            self.selected.iter().copied().collect()
-        }
     }
 }
 

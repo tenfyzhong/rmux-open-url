@@ -1,7 +1,7 @@
 use pretty_assertions::assert_eq;
 use rmux_open_url::{
-    ActionInput, Extractor, build_copy_action, build_open_action, filter_candidates, fuzzy_score,
-    parse_show_options, strip_ansi,
+    ActionInput, Extractor, UiState, build_copy_action, build_open_action, filter_candidates,
+    fuzzy_score, parse_show_options, strip_ansi,
 };
 
 #[test]
@@ -297,4 +297,65 @@ fn open_action_appends_url_as_argument() {
             stdin: None,
         }
     );
+}
+
+#[test]
+fn confirm_open_returns_cursor_url_when_nothing_selected() {
+    let urls = vec![
+        "https://example.com/1".to_owned(),
+        "https://example.com/2".to_owned(),
+        "https://example.com/3".to_owned(),
+    ];
+    let mut state = UiState::new(urls);
+    // Cursor starts at 0
+    assert_eq!(state.confirm_open(), vec![0]);
+
+    // Move cursor down to 1
+    state.cursor_down();
+    assert_eq!(state.confirm_open(), vec![1]);
+
+    // Move cursor down to 2
+    state.cursor_down();
+    assert_eq!(state.confirm_open(), vec![2]);
+}
+
+#[test]
+fn confirm_open_returns_cursor_url_with_active_filter() {
+    let urls = vec![
+        "https://example.com/a".to_owned(),
+        "https://github.com/b".to_owned(),
+        "https://github.com/c".to_owned(),
+    ];
+    let mut state = UiState::new(urls);
+    state.type_char('g');
+    state.type_char('h');
+    // filtered is now [1, 2] (matches for github.com)
+    assert_eq!(state.filtered, vec![1, 2]);
+    // Cursor starts at top of filtered list (index 1 in urls)
+    assert_eq!(state.confirm_open(), vec![1]);
+
+    // Move cursor down to next filtered item (index 2 in urls)
+    state.cursor_down();
+    assert_eq!(state.confirm_open(), vec![2]);
+}
+
+#[test]
+fn confirm_open_returns_multi_selected_urls_when_selected() {
+    let urls = vec![
+        "https://example.com/1".to_owned(),
+        "https://example.com/2".to_owned(),
+        "https://example.com/3".to_owned(),
+    ];
+    let mut state = UiState::new(urls);
+    state.toggle(); // Select 0
+    state.cursor_down();
+    state.cursor_down();
+    state.toggle(); // Select 2
+    assert_eq!(state.confirm_open(), vec![0, 2]);
+}
+
+#[test]
+fn confirm_open_returns_empty_when_no_urls() {
+    let state = UiState::new(Vec::new());
+    assert_eq!(state.confirm_open(), Vec::<usize>::new());
 }
