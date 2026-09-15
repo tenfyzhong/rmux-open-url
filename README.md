@@ -9,9 +9,9 @@ browser. Duplicate URLs are automatically deduplicated, so each link —
 including the same link produced by different patterns, such as a Git SSH
 address and the https address it converts to — is listed only once:
 
-- **Enter** opens the selected URLs in your browser.
-- **Tab** toggles multi-select; with nothing selected, Enter opens every
-  filtered match.
+- **Enter** opens the selected URLs (or the current line when nothing is
+  selected) in your browser.
+- **Tab** toggles multi-select.
 - **Ctrl-y** copies the selected URLs (or the current line) to the clipboard
   and keeps the picker open.
 - **Esc** or **Ctrl-c** cancels.

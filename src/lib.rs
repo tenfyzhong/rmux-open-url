@@ -7,6 +7,7 @@
 //!
 //! [rmux]: https://rmux.io
 
+use std::collections::BTreeSet;
 use std::io::Write;
 use std::process::{Command, Stdio};
 use std::sync::OnceLock;
@@ -282,6 +283,121 @@ pub fn filter_candidates(query: &str, urls: &[String]) -> Vec<usize> {
     scored.into_iter().map(|(_, index)| index).collect()
 }
 
+// ---------------------------------------------------------------------------
+// Interactive picker state
+// ---------------------------------------------------------------------------
+
+/// State machine for the URL picker.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct UiState {
+    pub urls: Vec<String>,
+    pub filtered: Vec<usize>,
+    pub query: String,
+    pub selected: BTreeSet<usize>,
+    pub cursor: usize,
+    pub notice: Option<String>,
+}
+
+impl UiState {
+    pub fn new(urls: Vec<String>) -> Self {
+        let filtered = (0..urls.len()).collect();
+        Self {
+            urls,
+            filtered,
+            query: String::new(),
+            selected: BTreeSet::new(),
+            cursor: 0,
+            notice: None,
+        }
+    }
+
+    pub fn refilter(&mut self) {
+        self.filtered = filter_candidates(&self.query, &self.urls);
+        self.cursor = 0;
+    }
+
+    pub fn type_char(&mut self, ch: char) {
+        self.query.push(ch);
+        self.refilter();
+    }
+
+    pub fn backspace(&mut self) {
+        self.query.pop();
+        self.refilter();
+    }
+
+    pub fn clear_query(&mut self) {
+        self.query.clear();
+        self.refilter();
+    }
+
+    pub fn cursor_up(&mut self) {
+        self.cursor = self.cursor.saturating_sub(1);
+    }
+
+    pub fn cursor_down(&mut self) {
+        if self.cursor + 1 < self.filtered.len() {
+            self.cursor += 1;
+        }
+    }
+
+    pub fn page_up(&mut self, viewport: usize) {
+        self.cursor = self
+            .cursor
+            .saturating_sub(viewport.saturating_sub(1).max(1));
+    }
+
+    pub fn page_down(&mut self, viewport: usize) {
+        self.cursor = (self.cursor + viewport.saturating_sub(1).max(1))
+            .min(self.filtered.len().saturating_sub(1));
+    }
+
+    pub fn home(&mut self) {
+        self.cursor = 0;
+    }
+
+    pub fn end(&mut self) {
+        self.cursor = self.filtered.len().saturating_sub(1);
+    }
+
+    pub fn toggle(&mut self) {
+        if self.filtered.is_empty() {
+            return;
+        }
+        let index = self.filtered[self.cursor.min(self.filtered.len() - 1)];
+        if !self.selected.insert(index) {
+            self.selected.remove(&index);
+        }
+    }
+
+    /// Enter confirms the selected URLs, or the current line when nothing is
+    /// selected.
+    pub fn confirm_open(&self) -> Vec<usize> {
+        if self.selected.is_empty() {
+            if self.filtered.is_empty() {
+                Vec::new()
+            } else {
+                vec![self.filtered[self.cursor.min(self.filtered.len() - 1)]]
+            }
+        } else {
+            self.selected.iter().copied().collect()
+        }
+    }
+
+    /// Ctrl-y copies the selected URLs, or the current line when nothing is
+    /// selected.
+    pub fn confirm_copy(&self) -> Vec<usize> {
+        if self.selected.is_empty() {
+            if self.filtered.is_empty() {
+                Vec::new()
+            } else {
+                vec![self.filtered[self.cursor.min(self.filtered.len() - 1)]]
+            }
+        } else {
+            self.selected.iter().copied().collect()
+        }
+    }
+}
 // ---------------------------------------------------------------------------
 // Actions: opening URLs and copying them to the clipboard
 // ---------------------------------------------------------------------------
